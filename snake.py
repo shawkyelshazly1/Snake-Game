@@ -35,6 +35,7 @@ class Snake():
         self.snake_head = self.snake_tiles[0]
         self.snake_vel = [0,0]
         self.previous_direction = ""
+        self.still_alive = False
 
     def reset(self):
         self.snake_length = 1
@@ -91,29 +92,37 @@ class Snake():
             self.food_slot = random.choice(self.get_empty_tiles())
             self.food_available = True
 
-    def snake_movement(self, direction):
+    def snake_movement(self):
         snake_head = list(self.snake_tiles[0])
-        snake_head[0] += DIRECTIONS[direction][0]
-        snake_head[1] += DIRECTIONS[direction][1]
-        movement_allowed = False
+        snake_head[0] += self.snake_vel[0]
+        snake_head[1] += self.snake_vel[1]
+        movement_allowed = True
 
         if self.check_death(snake_head):
             movement_allowed = False
-            print("Dead!")
+            self.still_alive = False
         else:
-            if self.snake_length > 1:
-                if snake_head != self.snake_tiles[1]:
-                    movement_allowed = True
-            else:
-                movement_allowed = True
-
             if movement_allowed:
                 for idx in range(len(self.snake_tiles)-1,0,-1):
                     self.snake_tiles[idx][0] = self.snake_tiles[idx-1][0]
                     self.snake_tiles[idx][1] = self.snake_tiles[idx-1][1]
                 self.snake_growth()
-                self.snake_tiles[0][0] += DIRECTIONS[direction][0]
-                self.snake_tiles[0][1] += DIRECTIONS[direction][1]
+
+                if snake_head[0] < 0:
+                    self.snake_tiles[0][0] = self.grid_height-1
+                    self.snake_tiles[0][1] += self.snake_vel[1]
+                elif snake_head[0] > self.grid_height-1:
+                    self.snake_tiles[0][0] = 0
+                    self.snake_tiles[0][1] += self.snake_vel[1]
+                elif snake_head[1] < 0:
+                    self.snake_tiles[0][0] += self.snake_vel[0]
+                    self.snake_tiles[0][1] = self.grid_width-1
+                elif snake_head[1] > self.grid_width-1:
+                    self.snake_tiles[0][0] += self.snake_vel[0]
+                    self.snake_tiles[0][1] = 0
+                else:
+                    self.snake_tiles[0][0] += self.snake_vel[0]
+                    self.snake_tiles[0][1] += self.snake_vel[1]
             
                 
                 
@@ -132,7 +141,25 @@ class Snake():
         for idx in range(2,len(self.snake_tiles)) :           
             if snake_head == self.snake_tiles[idx]:
                 return True
+    
+    def set_snake_vel(self,direction):
+        snake_head = list(self.snake_tiles[0])
+        snake_head[0] += DIRECTIONS[direction][0]
+        snake_head[1] += DIRECTIONS[direction][1]
 
+        if self.snake_length > 1:
+            if snake_head != self.snake_tiles[1]:
+                self.snake_vel[0] = DIRECTIONS[direction][0]
+                self.snake_vel[1] = DIRECTIONS[direction][1]
+            else:
+                self.snake_vel[0] = self.snake_vel[0] 
+                self.snake_vel[1] = self.snake_vel[1]
+        else:
+            self.snake_vel[0] = DIRECTIONS[direction][0]
+            self.snake_vel[1] = DIRECTIONS[direction][1]
+
+           
+        
 class Game_GUI():
     def __init__(self,snake):
         pg.init()
@@ -142,6 +169,7 @@ class Game_GUI():
         self.frame_width = self.grid_width * TILE_SIZE
         self.frame_height = self.grid_height * TILE_SIZE
         self.screen = pg.display.set_mode((self.frame_width, self.frame_height))
+        self.clock = pg.time.Clock()
 
     def play(self):
         '''
@@ -152,12 +180,20 @@ class Game_GUI():
                 if event.type == pg.QUIT:
                     sys.exit()
                 else:
-                    self.movement_handler(event)
+                    if self._snake.still_alive:
+                        self.movement_handler(event)
+                    else:
+                        self.mouse_handler(event)
 
-            self.screen.fill((0,0,0))
-            self.draw_grid()
-            self.draw_snake_and_food()
+            self.screen.fill((0,0,0))       
+            if self._snake.still_alive:
+                self.draw_grid()
+                self._snake.snake_movement()
+                self.draw_snake_and_food()
+            else:
+                self.draw_splash()
             pg.display.update()
+            self.clock.tick(8)
 
     def draw_grid(self):
         '''
@@ -194,19 +230,43 @@ class Game_GUI():
     def movement_handler(self,event):
         if event.type == pg.KEYDOWN:
             if event.key == pg.K_UP:
-                self._snake.snake_movement('UP')
+                self._snake.set_snake_vel('UP')
 
             elif event.key == pg.K_DOWN:
-                self._snake.snake_movement('DOWN')
+                self._snake.set_snake_vel('DOWN')
 
             elif event.key == pg.K_RIGHT:
-                self._snake.snake_movement('RIGHT')
+                self._snake.set_snake_vel('RIGHT')
 
             elif event.key == pg.K_LEFT:
-                self._snake.snake_movement('LEFT')
+                self._snake.set_snake_vel('LEFT')
+
         elif event.type == pg.KEYUP:
             pass
-            
+
+    def draw_splash(self):
+        global start_game_button
+        logo_font = pg.font.Font(None,100)
+        logo_text_surface = logo_font.render("Snake Game",True,(200,200,200))
+        logo_rect = [logo_text_surface.get_rect().width/2,logo_text_surface.get_rect().height/2]
+        self.screen.blit(logo_text_surface,((self.frame_width/2)-logo_rect[0],(self.frame_height/4)-logo_rect[1]))
+
+        start_game_button = pg.Rect((self.frame_width/2)-150,(self.frame_height/2)-37,300,75)
+        pg.draw.rect(self.screen,(245,50,99),start_game_button)
+
+        new_game_font = pg.font.Font(None,50)
+        new_game_text_surface = new_game_font.render("Start New Game",True,(200,200,200))
+        new_game_rect = [new_game_text_surface.get_rect().width/2,new_game_text_surface.get_rect().height/2]
+        self.screen.blit(new_game_text_surface,(start_game_button.centerx-new_game_rect[0],start_game_button.centery-new_game_rect[1]))
+
+    def mouse_handler(self,event):
+        global start_game_button
+        if event.type == pg.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                if start_game_button.collidepoint(event.pos):
+                    self._snake.still_alive = True
+                    self._snake.reset()
+
 
 snake = Snake(500,500)
 game = Game_GUI(snake)
